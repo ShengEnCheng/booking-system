@@ -6,16 +6,17 @@
     "googleapis": "^146.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2",
-    "react": "^18.x.x",
-    "react-dom": "^18.x.x"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node backend/src/server.js"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.x.x",
-    "vite": "^4.x.x"
+    "@vitejs/plugin-react": "^4.0.0",
+    "vite": "^4.5.10"
   }
 }
