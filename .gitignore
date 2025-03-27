@@ -52,4 +52,6 @@ yarn-error.log*
 
 # 編輯器配置
 .idea/
-.vscode/ 
+.vscode/
+
+GOOGLE_CALENDAR_ID=cgucii2@gmail.com 
