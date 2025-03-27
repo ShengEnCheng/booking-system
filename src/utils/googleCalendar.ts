@@ -4,10 +4,22 @@ import { JWT } from 'google-auth-library';
 // 從環境變量獲取認證信息
 let credentials;
 try {
-  credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}');
+  const credentialsStr = process.env.GOOGLE_CREDENTIALS || '{}';
+  credentials = JSON.parse(credentialsStr);
+  
+  // 修復私鑰格式
+  if (credentials.private_key) {
+    // 確保私鑰的格式正確
+    credentials.private_key = credentials.private_key
+      .replace(/\\n/g, '\n')
+      .replace(/^['"]|['"]$/g, '');
+  }
+
   console.log('成功解析 Google 認證信息:', {
     client_email: credentials.client_email,
-    has_private_key: !!credentials.private_key
+    has_private_key: !!credentials.private_key,
+    private_key_length: credentials.private_key?.length,
+    private_key_start: credentials.private_key?.substring(0, 50)
   });
 } catch (error) {
   console.error('解析 Google 認證信息失敗:', error);
@@ -22,13 +34,53 @@ if (!credentials.client_email || !credentials.private_key) {
   throw new Error('缺少必要的 Google 認證信息');
 }
 
+// 創建 JWT 客戶端
 const client = new JWT({
   email: credentials.client_email,
   key: credentials.private_key,
-  scopes: ['https://www.googleapis.com/auth/calendar.events'],
+  scopes: ['https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/calendar.events'],
 });
 
+// 創建日曆客戶端
 const calendar = google.calendar({ version: 'v3', auth: client });
+
+export async function getCalendarEvents(startDate: string, endDate: string) {
+  try {
+    // 確保客戶端已經認證
+    await client.authorize();
+
+    console.log('正在獲取日曆事件:', {
+      calendarId: process.env.CALENDAR_ID,
+      startDate,
+      endDate
+    });
+
+    const response = await calendar.events.list({
+      calendarId: process.env.CALENDAR_ID,
+      timeMin: startDate,
+      timeMax: endDate,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 2500
+    });
+
+    console.log('成功獲取日曆事件:', {
+      count: response.data.items?.length || 0,
+      nextPageToken: !!response.data.nextPageToken
+    });
+    
+    return response.data.items || [];
+  } catch (error) {
+    console.error('獲取日曆事件失敗:', error);
+    if (error instanceof Error) {
+      console.error('錯誤詳情:', {
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    throw error;
+  }
+}
 
 export async function createCalendarEvent(bookingData: any) {
   if (!process.env.CALENDAR_ID) {
@@ -100,25 +152,11 @@ export async function createCalendarEvent(bookingData: any) {
       calendarId: process.env.CALENDAR_ID,
       requestBody: event,
     });
-    
-    console.log('日曆事件創建成功:', response.data);
+
+    console.log('成功創建日曆事件:', response.data);
     return response.data;
   } catch (error) {
     console.error('創建日曆事件失敗:', error);
-    if (error instanceof Error) {
-      if (error.message.includes('Invalid Credentials')) {
-        console.error('Google 認證失敗，請檢查認證信息');
-        throw new Error('Google 認證失敗，請檢查認證信息');
-      }
-      if (error.message.includes('Not Found')) {
-        console.error('找不到指定的日曆，請檢查日曆 ID:', process.env.CALENDAR_ID);
-        throw new Error('找不到指定的日曆，請檢查日曆 ID');
-      }
-      if (error.message.includes('Invalid')) {
-        console.error('無效的請求，請檢查日期和時間格式');
-        throw new Error('無效的請求，請檢查日期和時間格式');
-      }
-    }
     throw error;
   }
 }

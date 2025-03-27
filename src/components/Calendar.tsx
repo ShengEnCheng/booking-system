@@ -24,29 +24,51 @@ export default function Calendar({ className }: CalendarProps) {
 
   useEffect(() => {
     const fetchEvents = async () => {
-      const monthStart = startOfMonth(currentDate);
-      const monthEnd = endOfMonth(currentDate);
-
       try {
+        const startDate = startOfMonth(currentDate).toISOString();
+        const endDate = endOfMonth(currentDate).toISOString();
+
+        console.log('正在請求日曆事件:', {
+          startDate,
+          endDate,
+          currentDate: currentDate.toISOString()
+        });
+
         const response = await fetch('/api/calendar-events', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            timeMin: monthStart.toISOString(),
-            timeMax: monthEnd.toISOString(),
-          }),
+          body: JSON.stringify({ startDate, endDate }),
         });
 
+        const responseData = await response.json();
+
         if (!response.ok) {
-          throw new Error('獲取事件失敗');
+          console.error('獲取日曆事件失敗:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: responseData
+          });
+          setEvents([]);
+          return;
         }
 
-        const data = await response.json();
-        setEvents(data.events || []);
+        console.log('成功獲取日曆事件:', {
+          count: responseData.length,
+          events: responseData
+        });
+        
+        setEvents(responseData || []);
       } catch (error) {
-        console.error('獲取事件錯誤:', error);
+        console.error('日曆事件獲取錯誤:', error);
+        if (error instanceof Error) {
+          console.error('錯誤詳情:', {
+            message: error.message,
+            stack: error.stack
+          });
+        }
+        setEvents([]);
       }
     };
 

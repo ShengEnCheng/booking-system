@@ -1,54 +1,56 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { google } from 'googleapis';
-import { JWT } from 'google-auth-library';
-
-// 從環境變量獲取認證信息
-let credentials;
-try {
-  credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}');
-} catch (error) {
-  console.error('解析 Google 認證信息失敗:', error);
-  throw new Error('Google 認證配置錯誤');
-}
-
-if (!credentials.client_email || !credentials.private_key) {
-  throw new Error('缺少必要的 Google 認證信息');
-}
-
-const client = new JWT({
-  email: credentials.client_email,
-  key: credentials.private_key,
-  scopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
-});
-
-const calendar = google.calendar({ version: 'v3', auth: client });
+import { getCalendarEvents } from '../../utils/googleCalendar';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: '方法不允許' });
-  }
-
-  const { timeMin, timeMax } = req.body;
-
-  if (!timeMin || !timeMax) {
-    return res.status(400).json({ message: '缺少必要的時間參數' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const response = await calendar.events.list({
+    const { startDate, endDate } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: '缺少必要的日期參數' });
+    }
+
+    if (!process.env.CALENDAR_ID) {
+      console.error('未設置 CALENDAR_ID 環境變量');
+      return res.status(500).json({ error: '未設置日曆 ID' });
+    }
+
+    console.log('收到日曆事件請求:', {
+      startDate,
+      endDate,
       calendarId: process.env.CALENDAR_ID,
-      timeMin,
-      timeMax,
-      singleEvents: true,
-      orderBy: 'startTime',
+      hasCredentials: !!process.env.GOOGLE_CREDENTIALS
     });
 
-    res.status(200).json({ events: response.data.items });
+    const events = await getCalendarEvents(startDate, endDate);
+
+    console.log('成功獲取日曆事件:', {
+      count: events.length,
+      firstEvent: events[0] ? {
+        summary: events[0].summary,
+        start: events[0].start,
+        end: events[0].end
+      } : null
+    });
+
+    return res.status(200).json(events);
   } catch (error) {
-    console.error('獲取日曆事件失敗:', error);
-    res.status(500).json({ message: '獲取日曆事件失敗' });
+    console.error('處理日曆事件請求失敗:', error);
+    if (error instanceof Error) {
+      return res.status(500).json({ 
+        error: '獲取日曆事件失敗',
+        details: error.message,
+        stack: error.stack,
+        calendarId: process.env.CALENDAR_ID,
+        hasCredentials: !!process.env.GOOGLE_CREDENTIALS
+      });
+    }
+    return res.status(500).json({ error: '獲取日曆事件失敗' });
   }
 } 
