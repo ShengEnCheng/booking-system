@@ -20,7 +20,7 @@
     "start": "node backend/src/server.js"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
     "vite": "^4.5.10"
   }
 }
